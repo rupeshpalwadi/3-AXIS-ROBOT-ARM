@@ -1,0 +1,89 @@
+<!-- First-draft 3-DOF pick-and-place arm. Units: metres, kg, N, rad.
+     Masses are estimates: arm links 150 g total, gripper with servo 100 g. -->
+<mujoco model="arm_3dof">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.001" integrator="implicitfast" cone="elliptic" impratio="10"/>
+
+  <default>
+    <geom friction="0.8 0.02 0.001" solref="0.004 1" solimp="0.95 0.99 0.001"/>
+    <joint armature="0.02" damping="0.1"/>
+    <position kp="150" kv="12" forcerange="-2.94 2.94"/>
+  </default>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="256" height="256"
+             rgb1=".82 .84 .87" rgb2=".72 .74 .78"/>
+    <material name="grid" texture="grid" texrepeat="8 8"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0.3 -0.3 1"/>
+    <camera name="side" pos="0.75 -0.65 0.45" xyaxes="0.66 0.75 0 -0.25 0.22 0.94"/>
+    <geom name="table" type="plane" size="1 1 0.01" material="grid"/>
+    <geom name="base" type="cylinder" size="0.06 0.025" pos="0 0 0.025" rgba=".25 .27 .3 1"/>
+
+    <body name="turntable" pos="0 0 0.05">
+      <joint name="base_yaw" axis="0 0 1" range="-2.8 2.8"/>
+      <geom name="tower" type="box" size="0.03 0.04 0.03" pos="0 0 0.03" mass="0.15" rgba=".3 .45 .7 1"/>
+
+      <body name="upper_arm" pos="0 0 0.05">
+        <joint name="shoulder" axis="0 1 0" range="-1.4 1.8"/>
+        <geom name="upper" type="box" size="0.012 0.018 0.06" pos="0 0 0.06" mass="0.075" rgba=".9 .55 .15 1"/>
+
+        <body name="forearm" pos="0 0 0.12">
+          <joint name="elbow" axis="0 1 0" range="0.17 2.62"/>
+          <geom name="fore" type="box" size="0.012 0.014 0.06" pos="0 0 0.06" mass="0.075" rgba=".9 .7 .25 1"/>
+
+          <body name="gripper" pos="0 0 0.12">
+            <joint name="wrist" axis="0 1 0" range="-3.14 3.14" armature="0.0001" damping="0.002"/>
+            <geom name="palm" type="box" size="0.02 0.045 0.015" pos="0 0 -0.015" mass="0.08" rgba=".3 .32 .36 1"/>
+            <site name="pinch" pos="0 0 -0.09" size="0.004" rgba="1 0 0 1"/>
+
+            <body name="finger_l" pos="0 0.008 -0.07">
+              <joint name="finger_l" type="slide" axis="0 1 0" range="0 0.035" armature="0.05" damping="20"/>
+              <geom name="pad_l" type="box" size="0.01 0.004 0.03" mass="0.01" rgba=".1 .1 .1 1"/>
+            </body>
+            <body name="finger_r" pos="0 -0.008 -0.07">
+              <joint name="finger_r" type="slide" axis="0 -1 0" range="0 0.035" armature="0.05" damping="20"/>
+              <geom name="pad_r" type="box" size="0.01 0.004 0.03" mass="0.01" rgba=".1 .1 .1 1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+
+    <body name="cube" pos="0.2 0 0.02">
+      <freejoint name="cube"/>
+      <geom name="cube" type="box" size="0.02 0.02 0.02" mass="0.2" rgba=".2 .7 .4 1"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <!-- Ideal parallel linkage: shoulder + elbow + wrist = 0 keeps the gripper level. -->
+    <fixed name="level">
+      <joint joint="shoulder" coef="1"/>
+      <joint joint="elbow" coef="1"/>
+      <joint joint="wrist" coef="1"/>
+    </fixed>
+  </tendon>
+
+  <equality>
+    <tendon tendon1="level" solref="0.002 1"/>
+    <joint joint1="finger_r" joint2="finger_l"/>
+  </equality>
+
+  <contact>
+    <exclude body1="gripper" body2="finger_l"/>
+    <exclude body1="gripper" body2="finger_r"/>
+    <exclude body1="finger_l" body2="finger_r"/>
+    <exclude body1="world" body2="turntable"/>
+  </contact>
+
+  <actuator>
+    <position name="base_yaw" joint="base_yaw"/>
+    <position name="shoulder" joint="shoulder"/>
+    <position name="elbow" joint="elbow"/>
+    <!-- Grip force limit 20 N total, shared by the two fingers (about 10 N each). -->
+    <position name="gripper" joint="finger_l" kp="2000" kv="0" forcerange="-20 20" ctrlrange="0 0.035"/>
+  </actuator>
+</mujoco>
